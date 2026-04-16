@@ -5,47 +5,44 @@ import base64
 import os
 
 app = Flask(__name__)
-# تفعيل CORS بشكل يسمح لجميع المصادر بدون استثناء
+# تفعيل السماح لكل المصادر لضمان عمل الـ Fetch من الموبايل
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# التأكد من وجود مفتاح الـ API
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 @app.route('/api/analyze', methods=['POST', 'OPTIONS'])
 def analyze():
-    # معالجة طلب OPTIONS (الذي يسبق الفاتورة الحقيقية للتأكد من الأمان)
+    # رد تلقائي بالموافقة على طلبات الـ preflight (الاستكشاف)
     if request.method == 'OPTIONS':
-        return _build_cors_preflight_response()
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "*")
+        response.headers.add('Access-Control-Allow-Methods', "POST, OPTIONS")
+        return response
 
     try:
         data = request.get_json()
-        image_b64 = data.get('image')
-        
-        if not image_b64:
-            return _corsify_actual_response(jsonify({"error": "No image"}), 400)
+        if not data or 'image' not in data:
+            return _create_response({"error": "No image data"}, 400)
 
-        image_data = base64.b64decode(image_b64)
+        image_data = base64.b64decode(data['image'])
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        response = model.generate_content([
-            "ما هذا الجهاز؟ اختر من: (لمبة، مروحة، شاشة، تكييف، ميكروويف، غسالة، ثلاجة). أجب بكلمة واحدة.",
-            {"mime_type": "image/jpeg", "data": image_data}
-        ])
+        # تحليل الجهاز
+        prompt = "ما هو هذا الجهاز الكهربائي؟ اختر كلمة واحدة فقط من: (لمبة، مروحة، شاشة، تكييف، ميكروويف، غسالة، ثلاجة)."
+        response = model.generate_content([prompt, {"mime_type": "image/jpeg", "data": image_data}])
         
-        return _corsify_actual_response(jsonify({"result": response.text.strip()}))
+        return _create_response({"result": response.text.strip()})
+    
     except Exception as e:
-        return _corsify_actual_response(jsonify({"error": str(e)}), 500)
+        return _create_response({"error": str(e)}, 500)
 
-def _build_cors_preflight_response():
-    response = make_response()
+def _create_response(data, status=200):
+    response = make_response(jsonify(data), status)
     response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add('Access-Control-Allow-Headers', "*")
-    response.headers.add('Access-Control-Allow-Methods', "*")
     return response
 
-def _corsify_actual_response(response, status=200):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    return response, status
-
-# للمزامنة مع Vercel
+# خاص ببيئة Vercel
 def handler(event, context):
     return app(event, context)
