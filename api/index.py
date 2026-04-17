@@ -30,7 +30,7 @@ def analyze():
         # تحويل الصورة من Base64
         image_data = base64.b64decode(data['image'])
         
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         # تحليل الصورة بكلمة واحدة فقط
         prompt = "ما هو هذا الجهاز الكهربائي؟ أجب بكلمة واحدة فقط من هذه القائمة: (لمبة، مروحة، شاشة، تكييف، ميكروويف، غسالة، ثلاجة)."
